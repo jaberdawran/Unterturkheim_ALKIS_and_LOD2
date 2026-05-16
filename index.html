@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Unterturkheim 3D City Model</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.116/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.116/Build/Cesium/Widgets/widgets.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:rgba(11,15,20,0.93);--border:rgba(255,255,255,0.08);
+      --alkis:#00d4aa;--ion:#f0a500;--green:#00e676;
+      --txt:#e8edf2;--muted:#7a8a9a;--label:#4a6070;
+      --pw:370px;--hh:52px;--tw:270px;
+    }
+    html,body{width:100%;height:100%;background:#0b0f14;font-family:'IBM Plex Sans',sans-serif;color:var(--txt);overflow:hidden}
+    #cesiumContainer{position:absolute;inset:0}
+    .cesium-infoBox,.cesium-selection-wrapper{display:none!important}
+    .cesium-viewer-toolbar{top:60px!important;right:8px!important}
+
+    /* HEADER */
+    #hdr{position:absolute;top:0;left:0;right:0;height:var(--hh);background:var(--bg);
+      border-bottom:1px solid var(--border);backdrop-filter:blur(12px);
+      display:flex;align-items:center;padding:0 14px;gap:10px;z-index:200}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--alkis);box-shadow:0 0 8px var(--alkis);flex-shrink:0}
+    #hdr h1{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+    #hdr .sub{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+    .sp{flex:1}
+    #srchBar{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);
+      border:1px solid var(--border);border-radius:8px;padding:0 10px;height:32px}
+    #srchBar input{background:none;border:none;outline:none;color:var(--txt);
+      font-family:'IBM Plex Mono',monospace;font-size:11px;width:170px}
+    #srchBar input::placeholder{color:var(--label)}
+    .gob{background:var(--alkis);border:none;border-radius:5px;color:#000;
+      font-size:10px;font-weight:700;padding:3px 8px;cursor:pointer;font-family:'IBM Plex Mono',monospace}
+    .gob:hover{opacity:.85}
+    .pills{display:flex;gap:6px}
+    .pill{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;
+      font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:.04em;border:1px solid}
+    .pill::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+    .pill.a{color:var(--alkis);border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.07)}
+    .pill.i{color:var(--ion);border-color:rgba(240,165,0,.3);background:rgba(240,165,0,.07)}
+
+    /* TOOLBAR */
+    #toolbar{position:absolute;top:calc(var(--hh)+12px);left:12px;width:var(--tw);
+      z-index:100;display:flex;flex-direction:column;gap:8px}
+    .card{background:var(--bg);border:1px solid var(--border);border-radius:10px;backdrop-filter:blur(12px);overflow:hidden}
+    .chdr{padding:9px 13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color .2s}
+    .chdr.open{border-bottom-color:var(--border)}
+    .cico{font-size:13px}
+    .ctit{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:1}
+    .carr{font-size:10px;color:var(--label);transition:transform .2s}
+    .chdr.open .carr{transform:rotate(180deg)}
+    .cbdy{padding:11px 13px;display:none}
+    .cbdy.open{display:block}
+
+    /* Color legend */
+    .cleg{display:flex;flex-direction:column;gap:5px}
+    .crow{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted)}
+    .csw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+
+    /* Year inputs */
+    .yrow{display:flex;gap:6px;margin-bottom:8px}
+    .yrow input{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);
+      border-radius:6px;padding:5px 7px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:11px;outline:none}
+    .yrow input:focus{border-color:var(--alkis)}
+    .yrow input::placeholder{color:var(--label)}
+    .btn{width:100%;padding:6px;border-radius:6px;border:none;cursor:pointer;
+      font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;
+      letter-spacing:.05em;text-transform:uppercase;transition:opacity .2s;margin-bottom:5px}
+    .btn:hover{opacity:.85}
+    .bp{background:var(--alkis);color:#000}
+    .bd{background:rgba(255,79,79,.15);color:#ff4f4f;border:1px solid rgba(255,79,79,.3)}
+    .bl{background:rgba(100,160,255,.15);color:#64a0ff;border:1px solid rgba(100,160,255,.3)}
+    #yStat{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green);margin-top:6px;display:none}
+
+    /* Shadow sliders */
+    .srow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .srow label{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;white-space:nowrap;width:64px}
+    input[type=range]{flex:1;accent-color:var(--alkis);cursor:pointer;-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--alkis);cursor:pointer}
+    .sv{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--alkis);width:32px;text-align:right}
+
+    /* LULC toggles */
+    .lrow{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+    .lsw{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+    .lrow label{font-size:11px;color:var(--muted);flex:1;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tog{position:relative;width:30px;height:16px;flex-shrink:0}
+    .tog input{opacity:0;width:0;height:0}
+    .tslider{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:16px;cursor:pointer;transition:background .2s}
+    .tslider::before{content:'';position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s}
+    .tog input:checked+.tslider{background:var(--alkis)}
+    .tog input:checked+.tslider::before{transform:translateX(14px)}
+
+    /* INFO PANEL */
+    #panel{position:absolute;top:calc(var(--hh)+12px);right:12px;width:var(--pw);
+      background:var(--bg);border:1px solid var(--border);border-radius:12px;
+      backdrop-filter:blur(16px);overflow:hidden;z-index:100;
+      transform:translateX(calc(var(--pw)+32px));opacity:0;
+      transition:transform .35s cubic-bezier(.16,1,.3,1),opacity .3s ease;pointer-events:none}
+    #panel.vis{transform:translateX(0);opacity:1;pointer-events:all}
+    #pacc{height:3px;background:var(--alkis);transition:background .3s}
+    #panel.im #pacc{background:var(--ion)}
+    #phdr{padding:12px 15px 9px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border)}
+    #ptit{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    #pbid{font-size:11px;font-weight:600;color:var(--txt);margin-top:2px;word-break:break-all;font-family:'IBM Plex Mono',monospace}
+    #sbadge{flex-shrink:0;padding:3px 9px;border-radius:20px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.05em;border:1px solid}
+    #sbadge.a{color:var(--alkis);border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+    #sbadge.i{color:var(--ion);border-color:rgba(240,165,0,.35);background:rgba(240,165,0,.08)}
+    #xcls{position:absolute;top:9px;right:9px;width:23px;height:23px;background:rgba(255,255,255,.05);
+      border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-size:12px}
+    #xcls:hover{background:rgba(255,255,255,.1);color:var(--txt)}
+    #bphoto{width:100%;max-height:170px;object-fit:cover;border-bottom:1px solid var(--border);display:none}
+    #atbl{padding:9px 15px 15px;overflow-y:auto;max-height:calc(100vh - var(--hh) - 180px)}
+    .ar{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}
+    .ar:last-child{border-bottom:none}
+    .ak{flex:0 0 44%;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--label);text-transform:uppercase;letter-spacing:.04em;padding-top:1px;word-break:break-word}
+    .av{flex:1;font-size:12px;color:var(--txt);word-break:break-word}
+    .av.hi{font-weight:600;color:var(--alkis);font-family:'IBM Plex Mono',monospace}
+    #panel.im .av.hi{color:var(--ion)}
+    .slbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--label);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:3px}
+    #spin{padding:18px 15px;display:flex;align-items:center;gap:11px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+    .sp2{width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--alkis);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #hint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);
+      background:var(--bg);border:1px solid var(--border);border-radius:8px;
+      padding:7px 15px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+      backdrop-filter:blur(12px);pointer-events:none;z-index:100;display:flex;align-items:center;gap:7px;transition:opacity .4s}
+    #hint.hid{opacity:0}
+    @keyframes fi{from{opacity:0}to{opacity:1}}
+    .fi{animation:fi .25s ease forwards}
+  </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="hdr">
+  <div class="dot"></div>
+  <div><h1>3D City Model · Unterturkheim</h1><div class="sub">LOD2 CityGML + ALKIS 2D Integration</div></div>
+  <div class="sp"></div>
+  <div id="srchBar">
+    <span style="color:var(--label);font-size:12px">🔍</span>
+    <input type="text" id="oidIn" placeholder="Search by OID_ …"/>
+    <button class="gob" onclick="searchOid()">GO</button>
+  </div>
+  <div class="pills">
+    <div class="pill a">ALKIS 2D</div>
+    <div class="pill i">ION Default</div>
+  </div>
+</div>
+
+<div id="toolbar">
+  <!-- Building Colors -->
+  <div class="card">
+    <div class="chdr open" onclick="tog(this)">
+      <span class="cico">🎨</span><span class="ctit">Building Types</span><span class="carr">▼</span>
+    </div>
+    <div class="cbdy open">
+      <div class="cleg">
+        <div class="crow"><div class="csw" style="background:#e74c3c"></div>Wohnhaus / Residential</div>
+        <div class="crow"><div class="csw" style="background:#ff9800"></div>Gewerbe / Commercial</div>
+        <div class="crow"><div class="csw" style="background:#9b59b6"></div>Industrie / Storage</div>
+        <div class="crow"><div class="csw" style="background:#1abc9c"></div>Öffentlich / Public</div>
+        <div class="crow"><div class="csw" style="background:#3498db"></div>Gebaeude (general)</div>
+        <div class="crow"><div class="csw" style="background:#7f8c8d"></div>Sonstiges / Other</div>
+      </div>
+      <button class="btn bp" style="margin-top:10px" onclick="applyColors()">🔄 Refresh Colors</button>
+    </div>
+  </div>
+
+  <!-- Year Filter -->
+  <div class="card">
+    <div class="chdr" onclick="tog(this)">
+      <span class="cico">📅</span><span class="ctit">Year Filter</span><span class="carr">▼</span>
+    </div>
+    <div class="cbdy">
+      <div class="yrow">
+        <input type="number" id="yFrom" placeholder="From" value="2005"/>
+        <input type="number" id="yTo" placeholder="To" value="2010"/>
+      </div>
+      <button class="btn bp" onclick="applyYear()">Apply Filter</button>
+      <button class="btn bd" onclick="clearYear()">Clear Filter</button>
+      <div id="yStat"></div>
+    </div>
+  </div>
+
+  <!-- Shadow -->
+  <div class="card">
+    <div class="chdr" onclick="tog(this)">
+      <span class="cico">🌤</span><span class="ctit">Shadow & Light</span><span class="carr">▼</span>
+    </div>
+    <div class="cbdy">
+      <div class="srow">
+        <label>Shadows</label>
+        <input type="range" id="shSl" min="0" max="1" step="1" value="0" oninput="setShadow(this.value)"/>
+        <span class="sv" id="shV">OFF</span>
+      </div>
+      <div class="srow">
+        <label>Brightness</label>
+        <input type="range" id="brSl" min="0.3" max="3" step="0.1" value="1" oninput="setBright(this.value)"/>
+        <span class="sv" id="brV">1.0</span>
+      </div>
+      <div class="srow">
+        <label>Ambient</label>
+        <input type="range" id="amSl" min="0" max="1" step="0.05" value="0.2" oninput="setAmbient(this.value)"/>
+        <span class="sv" id="amV">0.2</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LULC -->
+  <div class="card">
+    <div class="chdr" onclick="tog(this)">
+      <span class="cico">🗺</span><span class="ctit">LULC Layers</span><span class="carr">▼</span>
+    </div>
+    <div class="cbdy">
+      <button class="btn bl" onclick="loadLulc()" style="margin-bottom:8px">Load LULC Layers</button>
+      <div id="lulcList"><div style="font-size:10px;color:var(--label);font-family:'IBM Plex Mono',monospace">Click Load to fetch layers…</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="hint"><span>🖱</span> Click any building to view its attributes</div>
+
+<div id="panel">
+  <div id="pacc"></div>
+  <img id="bphoto" alt="Building photo"/>
+  <div id="phdr">
+    <div><div id="ptit">Building Info</div><div id="pbid">—</div></div>
+    <div id="sbadge" class="a">ALKIS 2D</div>
+  </div>
+  <div id="spin"><div class="sp2"></div>Fetching…</div>
+  <div id="atbl"></div>
+  <button id="xcls" onclick="closePanel()">✕</button>
+</div>
+
+<script>
+const TOKEN  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzZDcyZDZhZi1iMjc5LTQ2MTQtYmZkMi1iMTg0NGNlYWRiNTQiLCJpZCI6NDIyMDMxLCJpYXQiOjE3NzY4OTE5NzF9.BMWovuTbeY2fonj9Oevz_5Jr9xT891j7OwQAwgLJL8Y';
+const ASSET  = 4763839;
+const API    = 'http://localhost:3000';
+
+const LABELS = {
+  objekt_id:'Objekt-ID',aktualitaet:'Aktualität',gebaeudetyp:'Gebäudetyp',
+  funktion:'Funktion',funktion_kurz:'Funktion (kurz)',name:'Name',
+  anzahl_geschosse:'Anzahl Geschosse',adresse:'Adresse',
+  flaeche_m2:'Fläche (m²)',aufnahmedatum:'Aufnahmedatum'
+};
+const HI = new Set(['gebaeudetyp','funktion','adresse','anzahl_geschosse','flaeche_m2']);
+
+// Building type color lookup using funktion code
+const LULC_COL = {
+  'Agriculture':'#8BC34A','Without use':'#9E9E9E','local recreation':'#4CAF50',
+  'waste management':'#795548','Road and path transport':'#607D8B',
+  'Still in use':'#03A9F4','Industrial Areas':'#FF5722','Commercial Areas':'#FF9800',
+  'Public institutions':'#9C27B0','Rail transport':'#37474F',
+  'Cemeteries':'#78909C','Residential Use':'#F44336'
+};
+
+function getColor(gebaeudetyp, funktion) {
+  const f = (funktion||'').toLowerCase();
+  const g = (gebaeudetyp||'').toLowerCase();
+  if (f.includes('1010')||f.includes('1000')||f.includes('wohn')) return '#e74c3c';
+  if (f.includes('2463')||f.includes('vorrat')||f.includes('lager')||f.includes('2140')) return '#9b59b6';
+  if (f.includes('2100')||f.includes('industrie')) return '#ff5722';
+  if (f.includes('2000')||f.includes('gewerbe')) return '#ff9800';
+  if (f.includes('3000')||f.includes('schule')||f.includes('kirche')||f.includes('kranken')) return '#1abc9c';
+  if (g.includes('sonstiges')||g.includes('einrichtung')) return '#7f8c8d';
+  if (g.includes('gebaeude')||g.includes('gebäude')) return '#3498db';
+  return '#95a5a6';
+}
+
+// Cesium init
+Cesium.Ion.defaultAccessToken = TOKEN;
+const viewer = new Cesium.Viewer('cesiumContainer',{
+  terrain:Cesium.Terrain.fromWorldTerrain(),
+  timeline:false,animation:false,baseLayerPicker:true,geocoder:true,
+  navigationHelpButton:false,sceneModePicker:false,fullscreenButton:false,
+  selectionIndicator:false,infoBox:false
+});
+viewer.shadows = false;
+viewer.scene.globe.enableLighting = true;
+
+let tileset=null, colorEnt=[], yearEnt=[], lulcDS={};
+
+(async()=>{
+  try{
+    tileset = await Cesium.Cesium3DTileset.fromIonAssetId(ASSET);
+    viewer.scene.primitives.add(tileset);
+    await viewer.zoomTo(tileset);
+    console.log('✅ Tileset loaded');
+    applyColors(); // auto-color on load
+  }catch(e){console.error('❌',e)}
+})();
+
+// ── Tool card toggle ─────────────────────────────────────────────────────
+function tog(h){
+  h.classList.toggle('open');
+  h.nextElementSibling.classList.toggle('open');
+}
+
+// ── FEATURE 1: Building Colors ───────────────────────────────────────────
+// Stores gml:id → hex color lookup for evaluateColor
+window._colorMap = {};
+
+async function applyColors(){
+  colorEnt.forEach(e=>viewer.entities.remove(e));
+  colorEnt=[];
+
+  try{
+    const r = await fetch(`${API}/buildings/colors`);
+    const d = await r.json();
+    const buildings = d.buildings||[];
+    console.log(`Coloring ${buildings.length} buildings`);
+
+    // Build gml:id → color map
+    // Convert oid_ (DEBWL52210001EnpBL) → gml:id (DEBW_52210001Enp)
+    window._colorMap = {};
+    buildings.forEach(b=>{
+      const oid = b.objekt_id || '';
+      // Convert: remove 'L' after DEBW, remove trailing 'BL'
+      const gmlId = 'DEBW_' + oid.substring(5, oid.length - 2);
+      window._colorMap[gmlId] = getColor(b.gebaeudetyp, b.funktion);
+    });
+
+    // Apply evaluateColor on the tileset — colors actual 3D buildings
+    if(tileset){
+      tileset.style = new Cesium.Cesium3DTileStyle();
+      tileset.style.color = {
+        evaluateColor: function(feature, result){
+          const id  = feature.getProperty('gml:id');
+          const hex = window._colorMap[id];
+          if(hex) return Cesium.Color.fromCssColorString(hex, result);
+          return Cesium.Color.fromCssColorString('#aaaaaa', result);
+        }
+      };
+    }
+    console.log(`✅ Colors applied to ${buildings.length} buildings via evaluateColor`);
+  }catch(e){console.warn('Color error:',e.message)}
+}
+
+// ── FEATURE 2: Year Filter ───────────────────────────────────────────────
+async function applyYear(){
+  const from = document.getElementById('yFrom').value;
+  const to   = document.getElementById('yTo').value;
+  const stat = document.getElementById('yStat');
+
+  if(!from||!to){alert('Enter both years');return}
+
+  yearEnt.forEach(e=>viewer.entities.remove(e));
+  yearEnt=[];
+  colorEnt.forEach(e=>viewer.entities.remove(e));
+  colorEnt=[];
+
+  stat.style.display='block';
+  stat.textContent='Loading…';
+
+  try{
+    // Use the new /ids endpoint that returns converted gml:id values
+    const r = await fetch(`${API}/buildings/year/ids?from=${from}&to=${to}`);
+    const d = await r.json();
+    const buildings = d.buildings||[];
+    const gmlIds    = d.gml_ids||[];
+
+    stat.textContent='✅ '+buildings.length+' buildings ('+from+'–'+to+')';
+
+    if(gmlIds.length===0){
+      stat.textContent='⚠️ No buildings found ('+from+'–'+to+')';
+      return;
+    }
+
+    // Store matched IDs globally so the style evaluator can access them
+    window._yearIds = new Set(gmlIds);
+
+    // Use a defineProperty style with a JS function — avoids long expression limits
+    if(tileset){
+      tileset.style = new Cesium.Cesium3DTileStyle();
+      tileset.style.color = {
+        evaluateColor: function(feature, result) {
+          const id = feature.getProperty('gml:id');
+          if(window._yearIds && window._yearIds.has(id)){
+            return Cesium.Color.fromCssColorString('#00e676', result);
+          }
+          return Cesium.Color.fromBytes(34, 34, 34, 90, result);
+        }
+      };
+    }
+
+    // Fly to center of matched buildings
+    if(buildings.length>0){
+      const lons=buildings.map(b=>parseFloat(b.lon));
+      const lats=buildings.map(b=>parseFloat(b.lat));
+      const cLon=(Math.min(...lons)+Math.max(...lons))/2;
+      const cLat=(Math.min(...lats)+Math.max(...lats))/2;
+      viewer.camera.flyTo({
+        destination:Cesium.Cartesian3.fromDegrees(cLon,cLat,800),
+        orientation:{pitch:Cesium.Math.toRadians(-50)},
+        duration:2
+      });
+    }
+
+  }catch(e){
+    stat.textContent='❌ Error: '+e.message;
+    console.error(e);
+  }
+}
+
+function clearYear(){
+  yearEnt.forEach(e=>viewer.entities.remove(e));
+  yearEnt=[];
+  window._yearIds=null;
+  document.getElementById('yStat').style.display='none';
+  // Reset tileset to default then reapply building colors
+  if(tileset) tileset.style = new Cesium.Cesium3DTileStyle();
+  applyColors();
+}
+
+// ── FEATURE 3: LULC ─────────────────────────────────────────────────────
+async function loadLulc(){
+  const list=document.getElementById('lulcList');
+  list.innerHTML='<div style="font-size:10px;color:var(--muted);font-family:\'IBM Plex Mono\',monospace">Loading…</div>';
+
+  try{
+    const r = await fetch(`${API}/lulc`);
+    const d = await r.json();
+    const layers=d.layers||[];
+
+    if(layers.length===0){
+      list.innerHTML='<div style="font-size:10px;color:var(--label)">No LULC layers found.</div>';
+      return;
+    }
+
+    list.innerHTML='';
+    for(const layer of layers){
+      const col = LULC_COL[layer.name]||'#2196F3';
+      const uid = 'lulc_'+layer.name.replace(/\s+/g,'_');
+
+      list.innerHTML+=`
+        <div class="lrow">
+          <div class="lsw" style="background:${col}"></div>
+          <label for="${uid}" title="${layer.name}">${layer.name}</label>
+          <label class="tog">
+            <input type="checkbox" id="${uid}" checked
+              onchange="togLulc('${layer.name}',this.checked)"/>
+            <span class="tslider"></span>
+          </label>
+        </div>`;
+
+      // Load GeoJSON into Cesium
+      try{
+        const blob=new Blob([JSON.stringify(layer.geojson)],{type:'application/json'});
+        const url=URL.createObjectURL(blob);
+        const ds=await Cesium.GeoJsonDataSource.load(url,{
+          stroke:Cesium.Color.fromCssColorString(col),
+          fill:Cesium.Color.fromCssColorString(col).withAlpha(0.4),
+          strokeWidth:2,
+          clampToGround:true
+        });
+        ds.name=layer.name;
+        viewer.dataSources.add(ds);
+        lulcDS[layer.name]=ds;
+        console.log(`✅ LULC loaded: ${layer.name}`);
+      }catch(e){
+        console.warn(`LULC load error for ${layer.name}:`,e.message);
+      }
+    }
+  }catch(e){
+    list.innerHTML=`<div style="font-size:10px;color:#ff4f4f">Error: ${e.message}</div>`;
+  }
+}
+
+function togLulc(name,show){
+  if(lulcDS[name]) lulcDS[name].show=show;
+}
+
+// ── FEATURE 4: OID Search ────────────────────────────────────────────────
+async function searchOid(){
+  const oid=document.getElementById('oidIn').value.trim();
+  if(!oid)return;
+  try{
+    const r=await fetch(`${API}/search?oid=${encodeURIComponent(oid)}`);
+    if(r.status===404){alert('No building found with that OID.');return}
+    const d=await r.json();
+    const b=d.building;
+    viewer.camera.flyTo({
+      destination:Cesium.Cartesian3.fromDegrees(parseFloat(b.lon),parseFloat(b.lat),200),
+      orientation:{pitch:Cesium.Math.toRadians(-45)},
+      duration:2
+    });
+    document.getElementById('pbid').textContent=b.objekt_id||oid;
+    showAlkis({source:'ALKIS_2D',attributes:b},b.objekt_id);
+  }catch(e){alert('Search error: '+e.message)}
+}
+document.getElementById('oidIn').addEventListener('keydown',e=>{if(e.key==='Enter')searchOid()});
+
+// ── FEATURE 5: Shadow & Light ────────────────────────────────────────────
+function setShadow(v){
+  const on=parseInt(v)===1;
+  viewer.shadows=on;
+  viewer.scene.globe.enableLighting=on;
+  document.getElementById('shV').textContent=on?'ON':'OFF';
+}
+function setBright(v){
+  viewer.scene.globe.atmosphereLightIntensity=parseFloat(v);
+  document.getElementById('brV').textContent=parseFloat(v).toFixed(1);
+}
+function setAmbient(v){
+  viewer.scene.globe.atmosphereRayleighCoefficient=parseFloat(v);
+  document.getElementById('amV').textContent=parseFloat(v).toFixed(2);
+}
+
+// ── Panel helpers ────────────────────────────────────────────────────────
+const panel=document.getElementById('panel');
+const ptit=document.getElementById('ptit');
+const pbid=document.getElementById('pbid');
+const sbadge=document.getElementById('sbadge');
+const atbl=document.getElementById('atbl');
+const spin=document.getElementById('spin');
+const hint=document.getElementById('hint');
+const bphoto=document.getElementById('bphoto');
+
+let picked=null,origColor=null;
+function hilite(f){unhilite();picked=f;try{origColor=f.color.clone();f.color=Cesium.Color.CYAN.withAlpha(0.9)}catch(_){}}
+function unhilite(){if(picked&&origColor){try{picked.color=origColor}catch(_){}}picked=null;origColor=null}
+function closePanel(){panel.classList.remove('vis');unhilite();bphoto.style.display='none'}
+
+function showLoad(id){
+  pbid.textContent=id;sbadge.textContent='…';sbadge.className='';
+  atbl.innerHTML='';bphoto.style.display='none';
+  spin.style.display='flex';panel.className='vis';
+  hint.classList.add('hid');
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function showAlkis(data,gmlId){
+  spin.style.display='none';panel.className='vis';
+  sbadge.textContent='ALKIS 2D';sbadge.className='a';
+  ptit.textContent='ALKIS 2D Gebäudedaten';
+  const attrs=data.attributes||{};
+
+  // Photo
+  // Try PHOTO field first, then fallback to oid_.jpeg, then oid_.jpg, then oid_.png
+  const photoFilename = (attrs.foto && attrs.foto.trim())
+    ? attrs.foto.replace(/\\/g,'/').split('/').pop()
+    : null;
+  const oidFilename = attrs.objekt_id || '';
+
+  // Try to load photo — check PHOTO field first, then auto-named by oid_
+  function tryPhoto(names, index){
+    if(index >= names.length){ bphoto.style.display='none'; return; }
+    bphoto.src = `${API}/photos/${encodeURIComponent(names[index])}`;
+    bphoto.style.display='block';
+    bphoto.onerror=()=>tryPhoto(names, index+1);
+  }
+
+  const photoOptions = [
+    photoFilename,
+    oidFilename+'.jpeg',
+    oidFilename+'.jpg',
+    oidFilename+'.png',
+    oidFilename+'.JPG',
+    oidFilename+'.JPEG',
+  ].filter(Boolean);
+
+  tryPhoto(photoOptions, 0);
+
+  let html=`<div class="slbl">Katasterinformationen</div>`;
+  if(gmlId&&gmlId!=='(unknown)'){
+    html+=`<div class="ar fi"><div class="ak">gml:id (3D)</div><div class="av" style="color:var(--muted)">${esc(gmlId)}</div></div>`;
+  }
+  Object.entries(attrs).forEach(([k,v])=>{
+    if(k==='foto'||k==='lon'||k==='lat')return;
+    const lbl=LABELS[k]||k;
+    const val=(v===null||v===undefined||v==='')?'—':String(v);
+    html+=`<div class="ar fi"><div class="ak">${esc(lbl)}</div><div class="av ${HI.has(k)?'hi':''}">${esc(val)}</div></div>`;
+  });
+  atbl.innerHTML=html;
+}
+
+function showNative(gmlId,feature){
+  spin.style.display='none';panel.className='vis im';
+  sbadge.textContent='ION DEFAULT';sbadge.className='i';
+  ptit.textContent='Cesium Ion Tile Properties';
+  bphoto.style.display='none';
+  const props={};
+  try{feature.getPropertyIds().forEach(k=>{const v=feature.getProperty(k);if(v!==null&&v!==undefined&&v!=='')props[k]=v})}catch(_){}
+  const skip=new Set(['gml:id','id','gmlId','building_id']);
+  let html=`<div class="slbl">3D Tile Attributes</div>
+    <div class="ar fi"><div class="ak">gml:id</div><div class="av hi">${esc(gmlId)}</div></div>`;
+  const extras=Object.entries(props).filter(([k])=>!skip.has(k));
+  if(extras.length===0){
+    html+=`<div class="ar fi"><div class="av" style="color:var(--muted);font-style:italic;font-size:11px">Outside ALKIS study area.</div></div>`;
+  } else {
+    extras.forEach(([k,v])=>{
+      html+=`<div class="ar fi"><div class="ak">${esc(k)}</div><div class="av">${esc(String(v))}</div></div>`;
+    });
+  }
+  atbl.innerHTML=html;
+}
+
+async function fetchBuilding(lon,lat,gmlId,feature){
+  try{
+    const r=await fetch(`${API}/building?lon=${lon}&lat=${lat}`);
+    if(r.status===404){showNative(gmlId,feature);return}
+    if(!r.ok){showNative(gmlId,feature);return}
+    const d=await r.json();
+    if(d.source==='ALKIS_2D')showAlkis(d,gmlId);
+    else showNative(gmlId,feature);
+  }catch(e){showNative(gmlId,feature)}
+}
+
+// ── Click handler ────────────────────────────────────────────────────────
+const handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+handler.setInputAction(function(mv){
+  const p=viewer.scene.pick(mv.position);
+  if(!Cesium.defined(p)||!(p instanceof Cesium.Cesium3DTileFeature)){closePanel();return}
+  const gmlId=p.getProperty('gml:id')||p.getProperty('id')||p.getProperty('gmlId')||p.getProperty('building_id')||'(unknown)';
+  const cart=viewer.scene.pickPosition(mv.position);
+  if(!Cesium.defined(cart))return;
+  const cg=Cesium.Cartographic.fromCartesian(cart);
+  const lon=Cesium.Math.toDegrees(cg.longitude);
+  const lat=Cesium.Math.toDegrees(cg.latitude);
+  hilite(p);showLoad(gmlId);
+  fetchBuilding(lon,lat,gmlId,p);
+},Cesium.ScreenSpaceEventType.LEFT_CLICK);
+</script>
+</body>
+</html>
