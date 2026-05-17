@@ -113,7 +113,7 @@
       border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;
       display:flex;align-items:center;justify-content:center;font-size:12px}
     #xcls:hover{background:rgba(255,255,255,.1);color:var(--txt)}
-    #bphoto{width:100%;max-height:170px;object-fit:cover;border-bottom:1px solid var(--border);display:none}
+    #bphoto{width:100%;max-height:220px;object-fit:contain;border-bottom:1px solid var(--border);display:none;cursor:pointer;background:#000}
     #atbl{padding:9px 15px 15px;overflow-y:auto;max-height:calc(100vh - var(--hh) - 180px)}
     .ar{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}
     .ar:last-child{border-bottom:none}
@@ -227,7 +227,7 @@
 
 <div id="panel">
   <div id="pacc"></div>
-  <img id="bphoto" alt="Building photo"/>
+  <img id="bphoto" alt="Building photo" onclick="window.open(this.src,'_blank');" title="Click to view full size"/>
   <div id="phdr">
     <div><div id="ptit">Building Info</div><div id="pbid">—</div></div>
     <div id="sbadge" class="a">ALKIS 2D</div>
@@ -240,7 +240,10 @@
 <script>
 const TOKEN  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzZDcyZDZhZi1iMjc5LTQ2MTQtYmZkMi1iMTg0NGNlYWRiNTQiLCJpZCI6NDIyMDMxLCJpYXQiOjE3NzY4OTE5NzF9.BMWovuTbeY2fonj9Oevz_5Jr9xT891j7OwQAwgLJL8Y';
 const ASSET  = 4763839;
-const API    = 'https://unterturkheimalkisandlod2-production.up.railway.app';
+// Auto-detect: use localhost when running locally, Railway when public
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:3000'
+  : 'https://unterturkheimalkisandlod2-production.up.railway.app';
 
 const LABELS = {
   objekt_id:'Objekt-ID',aktualitaet:'Aktualität',gebaeudetyp:'Gebäudetyp',
