@@ -187,26 +187,26 @@
     </div>
   </div>
 
-  <!-- Shadow -->
+  <!-- Display Settings -->
   <div class="card">
     <div class="chdr" onclick="tog(this)">
-      <span class="cico">🌤</span><span class="ctit">Shadow & Light</span><span class="carr">▼</span>
+      <span class="cico">🎛</span><span class="ctit">Display Settings</span><span class="carr">▼</span>
     </div>
     <div class="cbdy">
       <div class="srow">
-        <label>Shadows</label>
-        <input type="range" id="shSl" min="0" max="1" step="1" value="0" oninput="setShadow(this.value)"/>
-        <span class="sv" id="shV">OFF</span>
+        <label>Opacity</label>
+        <input type="range" id="opSl" min="0.1" max="1" step="0.05" value="1" oninput="setOpacity(this.value)"/>
+        <span class="sv" id="opV">1.0</span>
       </div>
       <div class="srow">
-        <label>Brightness</label>
-        <input type="range" id="brSl" min="0.3" max="3" step="0.1" value="1" oninput="setBright(this.value)"/>
-        <span class="sv" id="brV">1.0</span>
+        <label>Time of Day</label>
+        <input type="range" id="timeSl" min="0" max="23" step="1" value="12" oninput="setTimeOfDay(this.value)"/>
+        <span class="sv" id="timeV">12h</span>
       </div>
       <div class="srow">
-        <label>Ambient</label>
-        <input type="range" id="amSl" min="0" max="1" step="0.05" value="0.2" oninput="setAmbient(this.value)"/>
-        <span class="sv" id="amV">0.2</span>
+        <label>Tilt View</label>
+        <input type="range" id="tiltSl" min="-90" max="0" step="5" value="-45" oninput="setTilt(this.value)"/>
+        <span class="sv" id="tiltV">-45°</span>
       </div>
     </div>
   </div>
@@ -495,20 +495,65 @@ async function searchOid(){
 }
 document.getElementById('oidIn').addEventListener('keydown',e=>{if(e.key==='Enter')searchOid()});
 
-// ── FEATURE 5: Shadow & Light ────────────────────────────────────────────
-function setShadow(v){
-  const on=parseInt(v)===1;
-  viewer.shadows=on;
-  viewer.scene.globe.enableLighting=on;
-  document.getElementById('shV').textContent=on?'ON':'OFF';
+// ── FEATURE 5: Display Settings ──────────────────────────────────────────
+function setOpacity(v){
+  const val = parseFloat(v);
+  document.getElementById('opV').textContent = val.toFixed(1);
+  if(!tileset) return;
+  // Apply opacity to the tileset style while preserving existing colors
+  if(window._yearIds){
+    // Year filter active — reapply with opacity
+    tileset.style = new Cesium.Cesium3DTileStyle();
+    tileset.style.color = {
+      evaluateColor: function(feature, result){
+        const id = feature.getProperty('gml:id');
+        if(window._yearIds && window._yearIds.has(id))
+          return Cesium.Color.fromCssColorString('#00e676').withAlpha(val);
+        return Cesium.Color.fromBytes(34,34,34,Math.round(val*90), result);
+      }
+    };
+  } else if(window._colorMap && Object.keys(window._colorMap).length > 0){
+    // Color mode active
+    tileset.style = new Cesium.Cesium3DTileStyle();
+    tileset.style.color = {
+      evaluateColor: function(feature, result){
+        const id = feature.getProperty('gml:id');
+        const hex = window._colorMap[id];
+        if(hex) return Cesium.Color.fromCssColorString(hex).withAlpha(val);
+        return Cesium.Color.fromCssColorString('#aaaaaa').withAlpha(val);
+      }
+    };
+  } else {
+    tileset.style = new Cesium.Cesium3DTileStyle({
+      color: `color('#ffffff', ${val})`
+    });
+  }
 }
-function setBright(v){
-  viewer.scene.globe.atmosphereLightIntensity=parseFloat(v);
-  document.getElementById('brV').textContent=parseFloat(v).toFixed(1);
+
+function setTimeOfDay(v){
+  const hour = parseInt(v);
+  document.getElementById('timeV').textContent = hour + 'h';
+  // Set Cesium clock to simulate time of day
+  const now = Cesium.JulianDate.now();
+  const date = Cesium.JulianDate.toDate(now);
+  date.setHours(hour, 0, 0, 0);
+  viewer.clock.currentTime = Cesium.JulianDate.fromDate(date);
+  viewer.scene.globe.enableLighting = true;
+  viewer.shadows = hour < 7 || hour > 19 ? false : true;
 }
-function setAmbient(v){
-  viewer.scene.globe.atmosphereRayleighCoefficient=parseFloat(v);
-  document.getElementById('amV').textContent=parseFloat(v).toFixed(2);
+
+function setTilt(v){
+  const angle = parseInt(v);
+  document.getElementById('tiltV').textContent = angle + '°';
+  const center = viewer.camera.positionCartographic;
+  viewer.camera.setView({
+    destination: viewer.camera.position,
+    orientation: {
+      heading: viewer.camera.heading,
+      pitch: Cesium.Math.toRadians(angle),
+      roll: 0
+    }
+  });
 }
 
 // ── Panel helpers ────────────────────────────────────────────────────────
@@ -542,30 +587,36 @@ function showAlkis(data,gmlId){
   const attrs=data.attributes||{};
 
   // Photo
-  // Try PHOTO field first, then fallback to oid_.jpeg, then oid_.jpg, then oid_.png
+  // Photo base URLs — try Supabase Storage first, then Railway local server
+  const SUPABASE_PHOTOS = 'https://kxisoojfjyhcqvjxfgbl.supabase.co/storage/v1/object/public/photos';
+  const oid = attrs.objekt_id || '';
+
+  // Get filename from PHOTO field or use oid_ as filename
   const photoFilename = (attrs.foto && attrs.foto.trim())
     ? attrs.foto.replace(/\\/g,'/').split('/').pop()
     : null;
-  const oidFilename = attrs.objekt_id || '';
 
-  // Try to load photo — check PHOTO field first, then auto-named by oid_
-  function tryPhoto(names, index){
-    if(index >= names.length){ bphoto.style.display='none'; return; }
-    bphoto.src = `${API}/photos/${encodeURIComponent(names[index])}`;
+  // Build list of URLs to try in order
+  function tryPhoto(urls, index){
+    if(index >= urls.length){ bphoto.style.display='none'; return; }
+    bphoto.src = urls[index];
     bphoto.style.display='block';
-    bphoto.onerror=()=>tryPhoto(names, index+1);
+    bphoto.onerror=()=>tryPhoto(urls, index+1);
   }
 
-  const photoOptions = [
-    photoFilename,
-    oidFilename+'.jpeg',
-    oidFilename+'.jpg',
-    oidFilename+'.png',
-    oidFilename+'.JPG',
-    oidFilename+'.JPEG',
+  const photoUrls = [
+    // Try Supabase Storage with oid_ filename
+    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.jpeg`,
+    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.jpg`,
+    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.png`,
+    // Try PHOTO field value in Supabase
+    photoFilename ? `${SUPABASE_PHOTOS}/${encodeURIComponent(photoFilename)}` : null,
+    // Fallback to Railway local server
+    `${API}/photos/${encodeURIComponent(oid)}.jpeg`,
+    `${API}/photos/${encodeURIComponent(oid)}.jpg`,
   ].filter(Boolean);
 
-  tryPhoto(photoOptions, 0);
+  tryPhoto(photoUrls, 0);
 
   let html=`<div class="slbl">Katasterinformationen</div>`;
   if(gmlId&&gmlId!=='(unknown)'){
