@@ -13,11 +13,8 @@ app.use(express.json());
 app.use('/photos', express.static(path.join(__dirname, 'photos')));
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'unterturkheim_3dmodel',
-  password: 'Afghanistan@28911',
-  port: 5432,
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres.kxisoojfjyhcqvjxfgbl:Afghanistan@28911@@aws-1-eu-north-1.pooler.supabase.com:5432/postgres',
+  ssl: { rejectUnauthorized: false }
 });
 
 app.get('/health', async (req, res) => {
