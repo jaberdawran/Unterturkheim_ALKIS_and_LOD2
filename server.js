@@ -11,9 +11,56 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/photos', express.static(path.join(__dirname, 'photos')));
+// Video streaming with proper Range request support
+app.get('/videos/:filename', (req, res) => {
+  const filePath = path.join(__dirname, 'videos', req.params.filename);
+  const fs = require('fs');
+  if (!fs.existsSync(filePath)) return res.status(404).send('Video not found');
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  // Detect MIME type
+  const ext = path.extname(filePath).toLowerCase();
+  const mime = ext === '.mov' ? 'video/quicktime'
+             : ext === '.avi' ? 'video/x-msvideo'
+             : ext === '.webm' ? 'video/webm'
+             : 'video/mp4';
+
+  if (range) {
+    // Partial content — browser is seeking or buffering
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end   = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+    const fileStream = fs.createReadStream(filePath, { start, end });
+
+    res.writeHead(206, {
+      'Content-Range':  `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges':  'bytes',
+      'Content-Length': chunkSize,
+      'Content-Type':   mime,
+    });
+    fileStream.pipe(res);
+  } else {
+    // Full file
+    res.writeHead(200, {
+      'Content-Length': fileSize,
+      'Content-Type':   mime,
+      'Accept-Ranges':  'bytes',
+    });
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
+app.use('/pdfs',   express.static(path.join(__dirname, 'pdfs')));
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres.kxisoojfjyhcqvjxfgbl:Afghanistan@28911@@aws-1-eu-north-1.pooler.supabase.com:5432/postgres',
+  host: 'aws-1-eu-north-1.pooler.supabase.com',
+  port: 5432,
+  database: 'postgres',
+  user: 'postgres.kxisoojfjyhcqvjxfgbl',
+  password: 'Afghanistan@28911@',
   ssl: { rejectUnauthorized: false }
 });
 
@@ -40,7 +87,6 @@ app.get('/building', async (req, res) => {
         "anzahlgs" AS anzahl_geschosse, "lagebeztxt" AS adresse,
         "Shape_Area" AS flaeche_m2, "Tim_Collec" AS aufnahmedatum,
         "PHOTO" AS foto,
-        -- Auto-generate photo filename from oid_ as fallback
         "oid_" || '.jpeg' AS foto_auto
       FROM "2D_ALKIS_Buildings"."ALKIS_2D_Buildings"
       WHERE ST_Contains(geom, ST_Transform(ST_SetSRID(ST_MakePoint($1,$2),4326),25832))
@@ -136,10 +182,26 @@ app.get('/buildings/year/ids', async (req, res) => {
 });
 
 // OID search
+// The gml:id from Cesium looks like:  DEBW_52210001Kzd
+// The ALKIS oid_ looks like:          DEBWL52210001KzdBL
+// Fix: strip the "DEBW_" or "DEBW" prefix so we search for just the middle
+// segment e.g. "52210001Kzd", which is safely contained in the ALKIS oid_.
+// We also use LIKE (not ILIKE) and escape the search term so that the
+// underscore character in the original gml:id cannot act as a SQL wildcard.
 app.get('/search', async (req, res) => {
   const oid = req.query.oid;
   if (!oid) return res.status(400).json({ error: 'Missing oid' });
   try {
+    // Strip known prefixes to get the bare middle segment
+    // DEBW_52210001Kzd  →  52210001Kzd
+    // DEBW52210001Kzd   →  52210001Kzd  (fallback, no underscore)
+    const stripped = oid
+      .replace(/^DEBW_/i, '')   // remove DEBW_ prefix
+      .replace(/^DEBW/i,  '');  // remove DEBW prefix if no underscore
+
+    // Escape SQL LIKE special characters in the search term itself
+    const escaped = stripped.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+
     const result = await pool.query(`
       SELECT
         "oid_" AS objekt_id, "aktualit" AS aktualitaet,
@@ -151,9 +213,9 @@ app.get('/search', async (req, res) => {
         ROUND(ST_X(ST_Transform(ST_Centroid(geom),4326))::numeric,7) AS lon,
         ROUND(ST_Y(ST_Transform(ST_Centroid(geom),4326))::numeric,7) AS lat
       FROM "2D_ALKIS_Buildings"."ALKIS_2D_Buildings"
-      WHERE "oid_" ILIKE $1
+      WHERE "oid_" LIKE $1 ESCAPE '\'
       LIMIT 1
-    `, [`%${oid}%`]);
+    `, [`%${escaped}%`]);
     if (result.rows.length > 0) return res.json({ found: true, building: result.rows[0] });
     return res.status(404).json({ found: false, message: 'Not found' });
   } catch (err) {

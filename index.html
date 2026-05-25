@@ -49,7 +49,7 @@
     .card{background:var(--bg);border:1px solid var(--border);border-radius:10px;backdrop-filter:blur(12px);overflow:hidden}
     .chdr{padding:9px 13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color .2s}
     .chdr.open{border-bottom-color:var(--border)}
-    .cico{font-size:13px}
+    .cico font-size:13px}
     .ctit{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:1}
     .carr{font-size:10px;color:var(--label);transition:transform .2s}
     .chdr.open .carr{transform:rotate(180deg)}
@@ -153,7 +153,6 @@
 </div>
 
 <div id="toolbar">
-  <!-- Building Colors -->
   <div class="card">
     <div class="chdr open" onclick="tog(this)">
       <span class="cico">🎨</span><span class="ctit">Building Types</span><span class="carr">▼</span>
@@ -171,7 +170,6 @@
     </div>
   </div>
 
-  <!-- Year Filter -->
   <div class="card">
     <div class="chdr" onclick="tog(this)">
       <span class="cico">📅</span><span class="ctit">Year Filter</span><span class="carr">▼</span>
@@ -187,7 +185,6 @@
     </div>
   </div>
 
-  <!-- Display Settings -->
   <div class="card">
     <div class="chdr" onclick="tog(this)">
       <span class="cico">🎛</span><span class="ctit">Display Settings</span><span class="carr">▼</span>
@@ -211,7 +208,6 @@
     </div>
   </div>
 
-  <!-- LULC -->
   <div class="card">
     <div class="chdr" onclick="tog(this)">
       <span class="cico">🗺</span><span class="ctit">LULC Layers</span><span class="carr">▼</span>
@@ -228,6 +224,12 @@
 <div id="panel">
   <div id="pacc"></div>
   <img id="bphoto" alt="Building photo" onclick="window.open(this.src,'_blank');" title="Click to view full size"/>
+  <video id="bvideo" controls style="width:100%;max-height:220px;display:none;border-bottom:1px solid var(--border);background:#000"></video>
+  <div id="bpdf" style="display:none;padding:10px 15px;border-bottom:1px solid var(--border)">
+    <a id="bpdflink" href="#" target="_blank" style="display:flex;align-items:center;gap:8px;color:var(--alkis);font-family:'IBM Plex Mono',monospace;font-size:11px;text-decoration:none">
+      <span style="font-size:20px">📄</span><span id="bpdflabel">Open PDF Document</span>
+    </a>
+  </div>
   <div id="phdr">
     <div><div id="ptit">Building Info</div><div id="pbid">—</div></div>
     <div id="sbadge" class="a">ALKIS 2D</div>
@@ -240,10 +242,10 @@
 <script>
 const TOKEN  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzZDcyZDZhZi1iMjc5LTQ2MTQtYmZkMi1iMTg0NGNlYWRiNTQiLCJpZCI6NDIyMDMxLCJpYXQiOjE3NzY4OTE5NzF9.BMWovuTbeY2fonj9Oevz_5Jr9xT891j7OwQAwgLJL8Y';
 const ASSET  = 4763839;
-// Auto-detect: use localhost when running locally, Railway when public
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// Auto-detect: use localhost when running locally, Render when public
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:3000'
-  : 'https://unterturkheimalkisandlod2-production.up.railway.app';
+  : 'https://unterturkheim-alkis-and-lod2.onrender.com';
 
 const LABELS = {
   objekt_id:'Objekt-ID',aktualitaet:'Aktualität',gebaeudetyp:'Gebäudetyp',
@@ -319,16 +321,13 @@ async function applyColors(){
     console.log(`Coloring ${buildings.length} buildings`);
 
     // Build gml:id → color map
-    // Convert oid_ (DEBWL52210001EnpBL) → gml:id (DEBW_52210001Enp)
     window._colorMap = {};
     buildings.forEach(b=>{
       const oid = b.objekt_id || '';
-      // Convert: remove 'L' after DEBW, remove trailing 'BL'
       const gmlId = 'DEBW_' + oid.substring(5, oid.length - 2);
       window._colorMap[gmlId] = getColor(b.gebaeudetyp, b.funktion);
     });
 
-    // Apply evaluateColor on the tileset — colors actual 3D buildings
     if(tileset){
       tileset.style = new Cesium.Cesium3DTileStyle();
       tileset.style.color = {
@@ -361,7 +360,6 @@ async function applyYear(){
   stat.textContent='Loading…';
 
   try{
-    // Use the new /ids endpoint that returns converted gml:id values
     const r = await fetch(`${API}/buildings/year/ids?from=${from}&to=${to}`);
     const d = await r.json();
     const buildings = d.buildings||[];
@@ -374,10 +372,8 @@ async function applyYear(){
       return;
     }
 
-    // Store matched IDs globally so the style evaluator can access them
     window._yearIds = new Set(gmlIds);
 
-    // Use a defineProperty style with a JS function — avoids long expression limits
     if(tileset){
       tileset.style = new Cesium.Cesium3DTileStyle();
       tileset.style.color = {
@@ -391,7 +387,6 @@ async function applyYear(){
       };
     }
 
-    // Fly to center of matched buildings
     if(buildings.length>0){
       const lons=buildings.map(b=>parseFloat(b.lon));
       const lats=buildings.map(b=>parseFloat(b.lat));
@@ -415,7 +410,6 @@ function clearYear(){
   yearEnt=[];
   window._yearIds=null;
   document.getElementById('yStat').style.display='none';
-  // Reset tileset to default then reapply building colors
   if(tileset) tileset.style = new Cesium.Cesium3DTileStyle();
   applyColors();
 }
@@ -451,7 +445,6 @@ async function loadLulc(){
           </label>
         </div>`;
 
-      // Load GeoJSON into Cesium
       try{
         const blob=new Blob([JSON.stringify(layer.geojson)],{type:'application/json'});
         const url=URL.createObjectURL(blob);
@@ -503,9 +496,7 @@ function setOpacity(v){
   const val = parseFloat(v);
   document.getElementById('opV').textContent = val.toFixed(1);
   if(!tileset) return;
-  // Apply opacity to the tileset style while preserving existing colors
   if(window._yearIds){
-    // Year filter active — reapply with opacity
     tileset.style = new Cesium.Cesium3DTileStyle();
     tileset.style.color = {
       evaluateColor: function(feature, result){
@@ -516,7 +507,6 @@ function setOpacity(v){
       }
     };
   } else if(window._colorMap && Object.keys(window._colorMap).length > 0){
-    // Color mode active
     tileset.style = new Cesium.Cesium3DTileStyle();
     tileset.style.color = {
       evaluateColor: function(feature, result){
@@ -536,7 +526,6 @@ function setOpacity(v){
 function setTimeOfDay(v){
   const hour = parseInt(v);
   document.getElementById('timeV').textContent = hour + 'h';
-  // Set Cesium clock to simulate time of day
   const now = Cesium.JulianDate.now();
   const date = Cesium.JulianDate.toDate(now);
   date.setHours(hour, 0, 0, 0);
@@ -568,15 +557,32 @@ const atbl=document.getElementById('atbl');
 const spin=document.getElementById('spin');
 const hint=document.getElementById('hint');
 const bphoto=document.getElementById('bphoto');
+const bvideo=document.getElementById('bvideo');
+const bpdf  =document.getElementById('bpdf');
+const bpdflink=document.getElementById('bpdflink');
+const bpdflabel=document.getElementById('bpdflabel');
 
 let picked=null,origColor=null;
 function hilite(f){unhilite();picked=f;try{origColor=f.color.clone();f.color=Cesium.Color.CYAN.withAlpha(0.9)}catch(_){}}
 function unhilite(){if(picked&&origColor){try{picked.color=origColor}catch(_){}}picked=null;origColor=null}
-function closePanel(){panel.classList.remove('vis');unhilite();bphoto.style.display='none'}
+function closePanel(){
+  panel.classList.remove('vis');
+  unhilite();
+  bphoto.style.display='none';
+  bvideo.style.display='none';
+  bvideo.src='';
+  bpdf.style.display='none';
+  const m=document.getElementById('photoMsg');
+  if(m) m.remove();
+}
 
 function showLoad(id){
   pbid.textContent=id;sbadge.textContent='…';sbadge.className='';
-  atbl.innerHTML='';bphoto.style.display='none';
+  atbl.innerHTML='';
+  bphoto.style.display='none';
+  bvideo.style.display='none';bvideo.src='';
+  bpdf.style.display='none';
+  const m=document.getElementById('photoMsg');if(m)m.remove();
   spin.style.display='flex';panel.className='vis';
   hint.classList.add('hid');
 }
@@ -588,45 +594,62 @@ function showAlkis(data,gmlId){
   sbadge.textContent='ALKIS 2D';sbadge.className='a';
   ptit.textContent='ALKIS 2D Gebäudedaten';
   const attrs=data.attributes||{};
+  const currentOid = attrs.objekt_id || '';
 
-  // Photo
-  // Photo base URLs — try Supabase Storage first, then Railway local server
-  const SUPABASE_PHOTOS = 'https://kxisoojfjyhcqvjxfgbl.supabase.co/storage/v1/object/public/Photos';
-  const oid = attrs.objekt_id || '';
+  // ── Attachment display — photo, video, or PDF from the PHOTO field ────────
+  const rawFoto  = (attrs.foto && String(attrs.foto).trim()) || '';
+  const fotoName = rawFoto.replace(/\\/g, '/').split('/').pop();
+  const fotoExt  = fotoName.split('.').pop().toLowerCase();
 
-  // Get filename from PHOTO field or use oid_ as filename
-  const photoFilename = (attrs.foto && attrs.foto.trim())
-    ? attrs.foto.replace(/\\/g,'/').split('/').pop()
-    : null;
+  bphoto.style.display = 'none';
+  bvideo.style.display = 'none';
+  bvideo.src = '';
+  bpdf.style.display   = 'none';
+  const oldMsg = document.getElementById('photoMsg');
+  if(oldMsg) oldMsg.remove();
 
-  // Build list of URLs to try in order
-  function tryPhoto(urls, index){
-    if(index >= urls.length){ bphoto.style.display='none'; return; }
-    bphoto.src = urls[index];
-    bphoto.style.display='block';
-    bphoto.onerror=()=>tryPhoto(urls, index+1);
+  if(!fotoName || fotoExt === fotoName || fotoName.toLowerCase() === 'none') {
+    // Empty asset column path check logic bypass
+  } else if(['mp4','mov','avi','mkv','webm'].includes(fotoExt)) {
+    // ── VIDEO RENDER ───────────────────────────────────────────────────────
+    bvideo.src = `${API}/videos/${fotoName}`;
+    bvideo.style.display = 'block';
+    bvideo.load();
+  } else if(fotoExt === 'pdf') {
+    // ── PDF DOCUMENT LINK RENDER ───────────────────────────────────────────
+    bpdflink.href = `${API}/pdfs/${fotoName}`;
+    bpdflabel.textContent = `Open PDF: ${fotoName}`;
+    bpdf.style.display = 'block';
+  } else {
+    // ── PHOTO IMAGE RENDER ─────────────────────────────────────────────────
+    const photoUrls = [];
+    if(fotoName) photoUrls.push(`${API}/photos/${fotoName}`);
+    if(currentOid) ['jpeg','jpg','JPG','JPEG','png','PNG'].forEach(ext => photoUrls.push(`${API}/photos/${currentOid}.${ext}`));
+    if(attrs.foto_auto) photoUrls.push(`${API}/photos/${attrs.foto_auto}`);
+    
+    const uniqueUrls = [...new Set(photoUrls)];
+    function tryPhoto(urls, index) {
+      if(index >= urls.length) {
+        const msg = document.createElement('div');
+        msg.id = 'photoMsg';
+        msg.style.cssText = "padding:8px 15px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--label);border-bottom:1px solid var(--border)";
+        msg.textContent = 'No attachment available for this building';
+        panel.insertBefore(msg, document.getElementById('phdr'));
+        return;
+      }
+      bphoto.onload  = () => { bphoto.style.display = 'block'; };
+      bphoto.onerror = () => tryPhoto(urls, index + 1);
+      bphoto.src = urls[index];
+    }
+    tryPhoto(uniqueUrls, 0);
   }
-
-  const photoUrls = [
-    // Try Supabase Storage with oid_ filename
-    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.jpeg`,
-    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.jpg`,
-    `${SUPABASE_PHOTOS}/${encodeURIComponent(oid)}.png`,
-    // Try PHOTO field value in Supabase
-    photoFilename ? `${SUPABASE_PHOTOS}/${encodeURIComponent(photoFilename)}` : null,
-    // Fallback to Railway local server
-    `${API}/photos/${encodeURIComponent(oid)}.jpeg`,
-    `${API}/photos/${encodeURIComponent(oid)}.jpg`,
-  ].filter(Boolean);
-
-  tryPhoto(photoUrls, 0);
 
   let html=`<div class="slbl">Katasterinformationen</div>`;
   if(gmlId&&gmlId!=='(unknown)'){
     html+=`<div class="ar fi"><div class="ak">gml:id (3D)</div><div class="av" style="color:var(--muted)">${esc(gmlId)}</div></div>`;
   }
   Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='foto'||k==='lon'||k==='lat')return;
+    if(k==='foto'||k==='foto_auto'||k==='lon'||k==='lat')return;
     const lbl=LABELS[k]||k;
     const val=(v===null||v===undefined||v==='')?'—':String(v);
     html+=`<div class="ar fi"><div class="ak">${esc(lbl)}</div><div class="av ${HI.has(k)?'hi':''}">${esc(val)}</div></div>`;
@@ -657,6 +680,14 @@ function showNative(gmlId,feature){
 
 async function fetchBuilding(lon,lat,gmlId,feature){
   try{
+    if(gmlId && gmlId !== '(unknown)'){
+      const stripped = gmlId.replace(/^DEBW_/i,'').replace(/^DEBW/i,'');
+      const r=await fetch(`${API}/search?oid=${encodeURIComponent(stripped)}`);
+      if(r.ok){
+        const d=await r.json();
+        if(d.found){ showAlkis({source:'ALKIS_2D',attributes:d.building},gmlId); return; }
+      }
+    }
     const r=await fetch(`${API}/building?lon=${lon}&lat=${lat}`);
     if(r.status===404){showNative(gmlId,feature);return}
     if(!r.ok){showNative(gmlId,feature);return}
